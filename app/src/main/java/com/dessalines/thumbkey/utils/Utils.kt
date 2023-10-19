@@ -47,6 +47,39 @@ const val TAG = "com.thumbkey"
 const val THUMBKEY_IME_NAME = "com.dessalines.thumbkey/.IMEService"
 const val IME_ACTION_CUSTOM_LABEL = EditorInfo.IME_MASK_ACTION + 1
 
+fun accelCurve(offset: Float, threshold: Float, exp: Float): Float {
+    var x = abs(offset)
+    val belowThreshold = min(offset, threshold)
+    x = max(0.0f, x - belowThreshold)
+    return x.pow(exp) + belowThreshold
+}
+
+fun acceleratingCursorDistanceThreshold(offsetX: Float, timeOfLastAccelerationInput: Long, acceleration: Int): Int {
+    // val exp = 1.0f // Slow and we can cover  1 1/2 full lines, so perfect for most.
+    // val exp = 1.5f // Slow and we can cover 2 full lines, so perfect for most.
+    // val exp = 2.0f // 2.0 should be the default
+    // val exp = 3.0f // 3.0 should be the upper limit for this
+    // Convert user's chosen acceleration of 1-50 to the amount we need.
+    val exp = 1.0f + ((acceleration * 4) / 100f) // Will give us a range from 1-3
+    val threshold = 2.0f // The threshold before acceleration kicks in.
+
+    val timeDifference = System.currentTimeMillis() - timeOfLastAccelerationInput
+    // Prevent division by 0 error.
+    var distance = if (timeDifference == 0L) {
+        0f
+    } else {
+        abs(offsetX) / timeDifference
+    }
+
+    distance = accelCurve(distance, threshold, exp)
+    if (offsetX < 0) {
+        // Set the value back to negative.
+        // A distance of -1 will move the cursor left by 1 character
+        distance *= -1
+    }
+    // distance = offsetX / 10
+    return distance.toInt()
+}
 @Composable
 fun colorVariantToColor(colorVariant: ColorVariant): Color {
     return when (colorVariant) {
